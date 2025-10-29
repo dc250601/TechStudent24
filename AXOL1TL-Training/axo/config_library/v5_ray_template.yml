@@ -1,0 +1,55 @@
+model:
+  train_mode:
+    Contrastive_VAE:
+      encoder_nodes:
+      - none
+      - none
+      vae_nodes:
+      - none
+      - none
+      vae_latent:
+      - none
+      beta: none
+      alpha: none
+  ap_fixed_kernel:
+  - 6
+  - 2
+  ap_fixed_bias:
+  - 10
+  - 6
+  ap_fixed_activation:
+  - 10
+  - 6
+  ap_fixed_data:
+  - 8
+  - 5
+train:
+  Contrastive_VAE:
+    batch_size: 4096
+    epochs_contrastive: 50
+    optimiser_config_contrastive:
+      optmiser: Adam
+      learning_rate: none
+      weight_decay: 0
+    optimiser_config_vae:
+      optmiser: Adam
+      learning_rate: none
+      weight_decay: 0
+    epochs_vae: 480
+    blur_p: none
+    blur_s: none
+    blur_m: none
+    mask_p: none
+lr_schedule:
+  Contrastive_VAE:
+    Contrastive_stage:
+      type: CDW
+      config:
+        warmup_epochs: 10
+    VAE_stage:
+      type: cosine_annealing_warm_restart_with_warmup
+      config:
+        first_cycle_steps: 32
+        cycle_mult: 2
+        warmup_epochs: 10
+        gamma: 0.5

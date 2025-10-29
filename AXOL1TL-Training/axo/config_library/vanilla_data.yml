@@ -1,0 +1,83 @@
+data_config:
+  Read_configs:
+    BACKGROUND:
+      file_path: ./ZB_embedded.h5
+      train_sector:
+      - 0
+      - 2000000
+      test_sector:
+      - 2000000
+      - 8000000
+      object_ranges: &id001
+        met: 0
+        egs: !!python/tuple
+        - 1
+        - 13
+        muons: !!python/tuple
+        - 13
+        - 21
+        jets: !!python/tuple
+        - 21
+        - 33
+    SIGNAL:
+      file_path: ./BSM_embedded.h5
+      MAX_NUM_SIGNALS: 200000
+      object_ranges:
+        met: 0
+        egs: !!python/tuple
+        - 1
+        - 13
+        muons: !!python/tuple
+        - 13
+        - 21
+        jets: !!python/tuple
+        - 21
+        - 33
+    constituents:
+      MET:
+      - true
+      EGAMMA:
+      - true
+      - true
+      - true
+      - true
+      - false
+      - false
+      - false
+      - false
+      - false
+      - false
+      - false
+      - false
+      MUON:
+      - true
+      - true
+      - true
+      - true
+      - false
+      - false
+      - false
+      - false
+      JET:
+      - true
+      - true
+      - true
+      - true
+      - true
+      - true
+      - true
+      - true
+      - true
+      - true
+      - false
+      - false
+    object_ranges: *id001
+  Saturation_configs:
+    saturation_mode: mask
+  Normalisation_configs:
+    scheme: RobustScaler_pow2(5,95,-2,2)
+    norm_ignore_zeros: true
+  Processed_data_path: Data.h5
+  Write_compression:
+    Compression_mode: null
+    Compression_opts: 0

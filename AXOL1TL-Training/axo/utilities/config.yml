@@ -1,0 +1,215 @@
+data_config:
+  Read_configs:
+    BACKGROUND:
+      file_path: ./ZB_embedded.h5
+      train_sector:
+      - 0
+      - 2000000
+      test_sector:
+      - 2000000
+      - 8000000
+      object_ranges: &id001
+        met: 0
+        egs: !!python/tuple
+        - 1
+        - 13
+        muons: !!python/tuple
+        - 13
+        - 21
+        jets: !!python/tuple
+        - 21
+        - 33
+    SIGNAL:
+      file_path: ./BSM_embedded.h5
+      MAX_NUM_SIGNALS: 200000
+      object_ranges:
+        met: 0
+        egs: !!python/tuple
+        - 1
+        - 13
+        muons: !!python/tuple
+        - 13
+        - 21
+        jets: !!python/tuple
+        - 21
+        - 33
+    constituents:
+      MET:
+      - true
+      EGAMMA:
+      - true
+      - true
+      - true
+      - true
+      - false
+      - false
+      - false
+      - false
+      - false
+      - false
+      - false
+      - false
+      MUON:
+      - true
+      - true
+      - true
+      - true
+      - false
+      - false
+      - false
+      - false
+      JET:
+      - true
+      - true
+      - true
+      - true
+      - true
+      - true
+      - true
+      - true
+      - true
+      - true
+      - false
+      - false
+    object_ranges: *id001
+  Saturation_configs:
+    saturation_mode: mask
+  Normalisation_configs:
+    scheme: RobustScaler_pow2(5,95,-2,2)
+    norm_ignore_zeros: true
+  Quantization_configs:
+    quantize_bits:
+    - 8
+    - 5
+  Processed_data_path: ./Data.h5
+  Write_compression:
+    Compression_mode: null
+    Compression_opts: 0
+determinism:
+  tf_op_determinism: true
+  numpy_determinism: true
+  python_determinism: true
+  global_seed: 123
+  torch_manual_seed: true
+  torch_cuda_manual_seed: true
+model:
+  train_mode:
+    VAE_V4:
+      encoder_config:
+        nodes:
+        - 28
+        - 15
+      latent_dim: 8
+      decoder_config:
+        nodes:
+        - 24
+        - 32
+        - 64
+        - 128
+        - 57
+      features: 57
+      alpha: 1
+      beta: 0.604108559135001
+    Contrastive_VAE:
+      encoder_nodes:
+      - 29
+      - 10
+      vae_nodes:
+      - 9
+      - 6
+      vae_latent:
+      - 4
+      beta: 0.8479820280580449
+      alpha: 0.4691963329462432
+  ap_fixed_kernel:
+  - 6
+  - 2
+  ap_fixed_bias:
+  - 10
+  - 6
+  ap_fixed_activation:
+  - 10
+  - 6
+  ap_fixed_data:
+  - 8
+  - 5
+train:
+  VAE_V4:
+    batch_size: 16384
+    n_epochs: 5
+    optimiser_config:
+      optmiser: lion
+      learning_rate: 0.0001
+      weight_decay: 0
+    reconstruction_loss: cyl_PtPz_mae
+  Contrastive_VAE:
+    batch_size: 4096
+    epochs_contrastive: 50
+    optimiser_config_contrastive:
+      optmiser: Adam
+      learning_rate: 0.0001033146150433934
+      weight_decay: 0
+    optimiser_config_vae:
+      optmiser: Adam
+      learning_rate: 0.00012660618375055985
+      weight_decay: 0
+    epochs_vae: 480
+    blur_p: 0.9004016520359364
+    blur_m: 0.92685112547458
+    blur_s: 0.749655944679925
+    mask_p: 0.5709886168264394
+threshold:
+  target_rate:
+  - 0.01
+  - 0.02
+  - 0.05
+  - 0.1
+  - 0.15
+  - 0.2
+  - 0.25
+  - 0.3
+  - 0.5
+  - 0.6
+  - 1
+  - 2
+  - 3
+  - 5
+  - 10
+  - 105
+  - 110
+  bc_khz: 28608.8064
+  ht_threshold: 280
+  precision:
+  - 8
+  - 5
+  alpha: 1
+store:
+  lite_path: ./lite.h5
+  complete_path: ./complete.h5
+  temp_path: ./
+  skip_saving_complete: false
+  build_model_path: ./build.h5
+report:
+  generate: true
+  path: axo.html
+lr_schedule:
+  VAE_V4:
+    type: cosine_annealing_warm_restart_with_warmup
+    config:
+      first_cycle_steps: 32
+      cycle_mult: 2
+      warmup_epochs: 10
+      gamma: 0.5
+  Contrastive_VAE:
+    Contrastive_stage:
+      type: CDW
+      config:
+        warmup_epochs: 10
+    VAE_stage:
+      type: cosine_annealing_warm_restart_with_warmup
+      config:
+        first_cycle_steps: 32
+        cycle_mult: 2
+        warmup_epochs: 10
+        gamma: 0.5
+train_recipe: Contrastive_VAE
