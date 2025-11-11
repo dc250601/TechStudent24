@@ -49,7 +49,13 @@ Along with the MSE loss that acts across the two projection vectors Z, to ensure
 
 When working with latent spaces, we are often interested in defining a metric on them. The definition of metric or distance in the embedding space provides insight into the exact nature of the embedding space. The metric on the latent space of an autoencoder is often ill-defined due to its erratic nature. Even though VAEs have partially solved this problem by making the space continuous through variational sampling, where two similar samples have similar embeddings due to the variational step, which facilitates the definition of local structures, the metric definition on a global level remains ill-defined. VICReg addresses this by introducing augmentations that often introduce inductive biases within the system, making the global structures clearer.
 
-To get a stronger intuition of this idea, we will take a real-life example. We consider a cylindrical system ($r\cos{t}$,$r\sin{t}$,$h$) where the rotation across the axis (of the cylinder) is invariant to our use cases. We can think of it as a coordinate change. We fix the radius to 1 and the dimension of the embedding space to 2 for easier visualization. The input dataset looks like:![](https://codimd.web.cern.ch/uploads/upload_524434a78c63737bdc87fe6a67a24582.png)
+To get a stronger intuition of this idea, we will take a real-life example. We consider a cylindrical system ($r\cos{t}$,$r\sin{t}$,$h$) where the rotation across the axis (of the cylinder) is invariant to our use cases. We can think of it as a coordinate change. We fix the radius to 1 and the dimension of the embedding space to 2 for easier visualization. The input dataset looks like
+
+<p align="center">
+  <img src="https://codimd.web.cern.ch/uploads/upload_524434a78c63737bdc87fe6a67a24582.png" width="45%"/>
+</p>
+
+
 When we train a VAE and a VICReg encoder (with the same architecture) on this dataset, we observe the following latent space.[](https://codimd.web.cern.ch/uploads/upload_03236af6f7bce7ab16e94df853048b28.png)
 In the above diagram we chose $Z \in \{-0.5,\,-0.25,\,0,\,0.25,\,0.5\}$ hence the 5 different clusters. 
 
