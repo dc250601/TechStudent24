@@ -5,10 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Anomaly Detection at 40 MHz</title>
     
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     
+    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Merriweather:ital,wght@0,300;0,400;0,700;1,300;1,400&display=swap" rel="stylesheet">
     
+    <!-- MathJax -->
     <script>
     MathJax = {
       tex: {
@@ -37,6 +40,7 @@
             line-height: 1.6;
             font-weight: 300;
             margin: 0;
+            overflow-y: scroll; /* Prevent layout shift when toggling content of different lengths */
         }
 
         /* Typography Override */
@@ -50,9 +54,19 @@
         h1 { font-size: 2.5rem; font-weight: 700; letter-spacing: -0.5px; }
         h2 { font-size: 1.75rem; font-weight: 500; border-bottom: 1px solid #eee; padding-bottom: 0.5rem; }
         h3 { font-size: 1.35rem; font-weight: 500; color: #333; }
+        h4 { font-size: 1.15rem; font-weight: 500; color: #444; margin-top: 1.5rem; }
 
         a { color: var(--global-theme-color); text-decoration: none; transition: color 0.2s; }
         a:hover { color: var(--global-hover-color); text-decoration: underline; }
+        
+        code {
+            background-color: #f8f9fa;
+            padding: 2px 4px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 0.9em;
+            color: #d63384;
+        }
 
         /* Layout */
         .container {
@@ -141,251 +155,472 @@
             gap: 1rem;
             flex-wrap: wrap;
         }
+
+        /* Toggle Slider Styles */
+        .toggle-wrapper {
+            display: flex;
+            justify-content: center;
+            margin-bottom: 2.5rem;
+            font-family: var(--font-sans);
+        }
+
+        .toggle-container {
+            background-color: #f1f3f5;
+            padding: 4px;
+            border-radius: 9999px;
+            display: inline-flex;
+            position: relative;
+            box-shadow: inset 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        .toggle-btn {
+            padding: 8px 24px;
+            border-radius: 9999px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            font-weight: 500;
+            color: #6c757d;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            z-index: 1;
+            position: relative;
+        }
+
+        .toggle-btn.active {
+            color: #000;
+            background-color: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+
+        .toggle-btn:focus {
+            outline: none;
+        }
+
+        /* Hide content utility */
+        .content-section {
+            display: none;
+            animation: fadeIn 0.4s ease-in-out;
+        }
+
+        .content-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
 
-    <article>
-        <h1>Anomaly Detection at 40 MHz</h1>
-
-        <h2>Introduction</h2>
-        <p>The Compact Muon Solenoid (CMS) Experiment at CERN produces massive amounts of data every second ($ \sim \mathcal{O}(40)$ TB/s), most of which is not practically stored or even analyzedanalyzed entirely. To solve this issue, several filtration steps or triggers have been developed that operate hierarchically to filter the amount of incoming data and reduce the number of events (collision events) from 40 MHz to a manageable 1 kHz. Two triggering steps achieve this:</p>
-        <ul>
-            <li><strong>Level 1 Trigger (L1T):</strong> This is the first trigger that operates mainly on Field Programmable Gate Array (FPGAs) and is responsible for reducing the rate from 40 MHz to 100 kHz.</li>
-            <li><strong>High Level Trigger (HLT):</strong> This is the second trigger that operates on CPU and GPU farms and uses a complete physics analysis (reconstruction) to make the trigger decision. HLT reduces the data rate from 100 kHz to 1 kHz.</li>
-        </ul>
-
-        <figure>
-            <img src="https://codimd.web.cern.ch/uploads/upload_51ae471109dd49c440b017b6dbe1a1aa.jpg" alt="CMS Trigger System">
-            <figcaption>Overview of the CMS Trigger Hierarchy</figcaption>
-        </figure>
-
-        <p>Given the massive amount of data, a rough resolution (portion of the entire data) of the events is used to make a decision for the L1T, making physics reconstruction algorithms impossible. Hence, L1T is primarily a cut-based trigger, where thresholds for physics observables are set as criteria for trigger conditions. Even though L1T works exceptionally well and has been heavily developed and tuned for quite some time, it remains heavily biased by the physical intuitions and assumptions used to build it.</p>
-
-        <p>The Standard Model (SM) of physics, being one of the most successful theories in modern physics, still fails to account for several phenomena, such as the existence of gravity as a distinct entity from the other fundamental forces, CP Violation, and the existence of dark matter, among others. All these discrepancies have led to theories that try to incorporate these phenomena. For the verification of such theoretical Beyond Standard Model (BSM), the discovery of new BSM particles is necessary. Given that BSM is an uncharted territory that might or might not follow the physical assumptions of the existing L1 Trigger, calls for the development of a new, unbiased trigger, completely from scratch, that can efficiently filter data and remain based entirely on statistical properties rather than physics-based intuitions.</p>
-
-        <h2>AXOL1TL</h2>
-        <p>Anomaly eXtraction Online L1 Trigger Lightweight in L1 Global Trigger (AXOL1TL) is a trigger based on an anomaly detection algorithm that is deployed as a part of the L1T, which takes in a subset of the Level-1 (L1) objects (measurables) and tries to assign an anomaly score for every event. Events are selected based on their anomaly score, considering fixed-rate budgets.</p>
-
-        <h3>Working of the existing baseline</h3>
-        <figure>
-            <img src="https://codimd.web.cern.ch/uploads/upload_3cd179da8e14cdd8bde2fb5f2e4a7f2c.png" alt="AXOL1TL Baseline Architecture">
-            <figcaption>Training and deployment of the baseline (v4) model</figcaption>
-        </figure>
-
-        <p>The diagram above illustrates the training and deployment of the baseline (v4) model. In this report, we discuss how we can improve on this architecture to make the trigger more accurate (in detection), robust (to changing detector conditions), and interpretable (for analysis).</p>
-
-        <p>The above method exhibits a few problems:</p>
-        <ol>
-            <li>The loss (used to train) the original Variational AutoEncoder (VAE) for anomaly detection (AD) does not align well with the final optimisation goal of the model, given that the headless (without Decoder) model no longer represents an autoencoder. Using latent vectors (in this case, their L2 norm) for anomaly detection can be challenging and unpredictable.</li>
-            <li>VAEs do not guarantee any form of explicit clustering in the embedding space where similar samples strictly lie close to each other. Reconstruction error of a point might hint toward it being anomalous, but the same is not always valid for points that are close to each other (or have similar L2 norm).</li>
-            <li>Taking the L2 norm of the latents explicitly assumes that the anomalous samples will always be strictly away from the center, but that might not always be true.</li>
-        </ol>
-
-        <p>To address these problems, we modify the VAE. The modification will be discussed and developed over the course of the following few sections.</p>
-
-        <h3>Self-Supervised Learning, metric and clustering.</h3>
-        <p>Self-Supervised Learning (SSL) is a ML paradigm that focuses on the production of information-rich feature vectors from a dataset without explicitly using any labels. To achieve this, SSL models are trained on a surrogate task that utilizes pseudo labels from training and loss computation. For this study, we primarily focus on the VICReg, a well-celebrated SSL technique.</p>
-
-        <h4>VICReg</h4>
-        <p><a href="https://arxiv.org/abs/2105.04906">VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning</a> work by training on the surrogate task of generating embedding spaces that are invariant to specific augmentation spaces. This is achieved by using a Siamese-like setup, where two views of the same event are used, but both have been augmented to different degrees. The Euclidean distance in the embedding space between these two views is then minimised using gradient descent.</p>
-
-        <figure>
-            <img src="https://codimd.web.cern.ch/uploads/upload_b4cf6c75203f0b7c827e481f2518c359.png" alt="VICReg Training Procedure">
-            <figcaption>VICReg Training Procedure <a href="https://arxiv.org/pdf/2105.04906">Bardes et al.</a></figcaption>
-        </figure>
-
-        <p>Along with the MSE loss that acts across the two projection vectors Z, to ensure stability against collapse and the non-triviality of the embedding space, we have covariance and variance regularization terms. The covariance component prevents the embedding dimensions from capturing the same information. In contrast, the variance component prevents all embedding vectors in a batch from collapsing to a single point in the representation space.</p>
-
-        <h4>Metric</h4>
-        <p>When working with latent spaces, we are often interested in defining a metric on them. The definition of metric or distance in the embedding space provides insight into the exact nature of the embedding space. The metric on the latent space of an autoencoder is often ill-defined due to its erratic nature. Even though VAEs have partially solved this problem by making the space continuous through variational sampling, where two similar samples have similar embeddings due to the variational step, which facilitates the definition of local structures, the metric definition on a global level remains ill-defined. VICReg addresses this by introducing augmentations that often introduce inductive biases within the system, making the global structures clearer.</p>
-
-        <p>To get a stronger intuition of this idea, we will take a real-life example. We consider a cylindrical system ($r\cos{t}$,$r\sin{t}$,$h$) where the rotation across the axis (of the cylinder) is invariant to our use cases. We can think of it as a coordinate change. We fix the radius to 1 and the dimension of the embedding space to 2 for easier visualization. The input dataset looks like</p>
-
-        <figure>
-             <img src="https://codimd.web.cern.ch/uploads/upload_524434a78c63737bdc87fe6a67a24582.png" style="width: 45%;" alt="Input Dataset Visualization"/>
-        </figure>
-
-        <p>When we train a VAE and a VICReg encoder (with the same architecture) on this dataset, we observe the following latent space.</p>
-
-        <figure>
-             <img src="https://codimd.web.cern.ch/uploads/upload_03236af6f7bce7ab16e94df853048b28.png" alt="Latent Space Comparison"/>
-             <figcaption>In the above diagram we chose $Z \in \{-0.5,\,-0.25,\,0,\,0.25,\,0.5\}$ hence the 5 different clusters.</figcaption>
-        </figure>
-
-        <p>As is already evident, VICReg does a fantastic job of removing the angular component from within the data. We can use the MSE distance between the points in this case for our theta invariant task. The same is not true for VAE; as it is an information-preserving system, it cannot eliminate the angular component, making the concept of distance in our latent space ambiguous. One thing to exercise caution in this entire argument is that the distance is only relevant with respect to proper augmentations. With only Gaussian blurring, we won't be able to define a metric even with our VICReg setup. Removing the rotation from the augmentation space renders our metric for VICReg's latent space ill-defined for our task at hand, where rotation along the axis does not alter the system. Below, we illustrate the nature of the latent space of VICReg without rotation augmentation.</p>
-
-        <figure>
-             <img src="https://codimd.web.cern.ch/uploads/upload_54df15c45a3341c5ad9123e3eedc7db9.png" alt="VICReg without rotation"/>
-        </figure>
-
-        <p>Using different augmentation strategies, we can easily encode various types of invariances within our system, making VICReg an ideal choice to build an embedding space. The metric in this space is the Euclidean distance between two points, indicating how the two separate events differ from each other. Moreover, within each cluster of points in the VICReg space, we can expect samples that are physically invariant to one another (i.e., samples that have different representations in $R^n$ but have similar physical meanings, such as Lorentz-boosted samples or rotated samples). Building systems that can cluster our anomalous samples together is our first step in developing our unified anomaly detection framework.</p>
-
-        <h2>Anomaly Detection, Density and Clusters</h2>
-        <p>VAEs are one of the best candidate models for anomaly detection (AD). VAEs work well in AD since they fail to reconstruct points that lie in low-density regions, which the model has difficulty learning. The figure below illustrates the operation of a VAE in the context of anomaly detection, when trained on a dataset of 5 overlapping Gaussians in a 2D space.</p>
-
-        <figure>
-             <img src="https://codimd.web.cern.ch/uploads/upload_ab828337b29d3e37f8a7807d6a013ab7.png" alt="VAE Anomaly Detection"/>
-        </figure>
-
-        <p>As we can see, when using the standard reconstruction loss, we can correctly identify the 5 cluster centers along with their distribution. In contrast, the surrounding region has a higher reconstruction loss, as there are fewer pointers available there. Although the $||z||_2$ (on the right) or $\mathbf{z}^\top \mathbf{z}$ setup without the Decoder (following the v4 architecture of AXOL1TL) works well in the vicinity of the cluster and in finding the global region of high density, but fails to capture the details of the distributions.</p>
-
-        <p><strong>Out-of-the-box-distribution</strong> VAEs, as demonstrated, can have good anomaly detection capacities until they encounter the <strong>Out-of-the-box-distribution</strong> problem, in which case the VAE learns too well about the dataset and ends up reconstructing everything (including the anomalies) perfectly, making it a poor choice for anomaly detection in those cases. This problem can get further aggravated when the training dataset itself contains the anomalous datapoints (true in our case).</p>
-
-        <p>On the other hand, although we have established the paradigm of latent space creation through VICReg and formed tight clusters of points, we have yet to address the problem of identifying clusters where our anomalies or rare samples reside.</p>
-
-        <h2>Mahalanobis Distance, Gaussian Mixtures and Anomaly Detection</h2>
-        <p>Self-supervised methods, such as VICReg, due to their inherent nature of minimizing invariance loss over the embedding space, tend to create clusters in the latent embedding space. We can broadly classify the entire dataset D to be composed of three components:</p>
-
-        <ol>
-            <li><strong>Clusters of Normals (Inliers):</strong> By normalies, we understand the physics processes/signals that occur frequently and can be readily found using the existing physics-based triggers. These inliers are defined based on their statistical significance, and such clusters are considered to have a large number of elements and strong distribution peaks. These clusters are importantimportant for Standard Model studies,, but given that we are here trying to look for exotic signatures that are statistically outnumbered,, we refer to these standard physics processes as our normals. We are not particularly interested in probing these clusters in this work, given the extensive amount of research that has already been conducted on such processes. Let's denote them by the notation $N_i$, we can have many such physics processes, all of which can be categorised into their own clusters as $N_0, N_1...N_n$</li>
-            <li><strong>Cluster of Anomalies:</strong> Given the pretext that the anomalies follow a different form of distribution pattern within the dataset, given that they originate from exotic physics processes, we can consider these anomalies to be contained within their own clusters, just like the nomalies, except these cluster centers are separated from $N_i$. Given that we assume these anomalies are indicative of exotic physics signatures, they must be present in clusters. The absence of clusters for anomalies means they can never be detected with certainty using our framework, which points towards a deeper problem, such as poor detector resolution or a poor choice of augmentation/architecture. Lets call these $A_0,..A_1,...A_a$</li>
-            <li><strong>Stray points:</strong> For the sake of completion, we can consider the remaining points to be spread across the embedding space. These points are generally statistical noise and can be attributed to various sources, including hadronic noise and detector issues. We can refer to all these points $S_0, S_1... S_s$</li>
-        </ol>
-
-        <p>Given that there does not exist a rigid definition distinguishing $S$ and $A$, and that in the absence of a well-defined embedding space or identifiable anomalies, $S$ may consist of shallow distributions or even isolated points—which are inherently difficult to model—we absorb all $S$ into $A$.</p>
-
-        <p>We can now say $D = \left( \bigcup_{i \in n} N_i \right) \times \left( \bigcup_{j \in J} A_j \right)$</p>
-
-        <p>Now, finding $\bigcup_{i \in I} N_i$ is straightforward, as these correspond to some of the most well-studied processes in high-energy physics (HEP). However, we deliberately refrain from invoking physical intuition, as our goal is to construct an unbiased system. Instead, we adopt the statistical definition of $N_i$ — treating them as the most well-populated distributions.</p>
-
-        <p>We take a hyper-parameter $k \in \mathrm{N}$ assuming that we have $K$ clusters of normals. Now we fit a Gaussian mixture model (GMM) on the latent space with $k$ gaussians, making sure that all our standard physics signatures get absorbed within these $k$ clusters. Now, for any point $p$ on the embedding space, we can find how anomalous it is by finding how far it is from these cluster centers.</p>
-
-        <p>Had the value of $k$ been 1. We could have used the Mahalanobis distance for finding the distance of $p$ from the cluster center. For finding the distance of a point $p$ from $k$ gaussians, one can use methods like <a href="https://ieeexplore.ieee.org/document/818035">these</a>. Given that such methods are extremely difficult to implement on an FPGA board (where we want to deploy our model), we skip it. Instead, we try to compute $D_i$ for $p$, where we define $D_i$ using the mahalanobis distance as</p>
-
-        <div class="math-block">
-        $$
-        D_i(\mathbf{p}) = \sqrt{(\mathbf{p} - \boldsymbol{\mu_i})^{T} \, \mathbf{\Sigma_i}^{-1} \, (\mathbf{p} - \boldsymbol{\mu_i})}
-        $$
+    <!-- Toggle Slider -->
+    <div class="toggle-wrapper">
+        <div class="toggle-container">
+            <button class="toggle-btn active" onclick="switchTab('rnd')">AXOL1TL Rnd</button>
+            <button class="toggle-btn" onclick="switchTab('mlops')">MLOps at 40 MHz</button>
         </div>
+    </div>
 
-        <p><strong>where:</strong></p>
-        <ul>
-            <li><strong>$\mathbf{p}$</strong> — point or event in the embedding space whose anomaly score is being evaluated.</li>
-            <li><strong>$D_i(\mathbf{p})$</strong> — Mahalanobis distance of point $\mathbf{p}$ from the $i^{\text{th}}$ cluster center.</li>
-            <li><strong>$\boldsymbol{\mu_i}$</strong> — mean of the $i^{\text{th}}$ cluster in the embedding space.</li>
-            <li><strong>$\mathbf{\Sigma_i}$</strong> — covariance matrix of the $i^{\text{th}}$ gaussian on the embedding space.</li>
-        </ul>
+    <!-- Page 1: AXOL1TL Rnd -->
+    <div id="rnd-content" class="content-section active">
+        <article>
+            <h1>Anomaly Detection at 40 MHz</h1>
 
-        <p>Now, given that we are considering our embedding space to be dominated by K clusters, we can use an aggregation method to combine $D_0, D_1,..., D_K$ to get a single composite anomaly metric. One can choose different metrics, such as the arithmetic mean, min-max, and geometric mean, among others. In this work, we found that the geometric mean outperforms other aggregation metrics for the task at hand.<br>Hence, we can write the anomaly score as:</p>
+            <h2>Introduction</h2>
+            <p>The Compact Muon Solenoid (CMS) Experiment at CERN produces massive amounts of data every second ($ \sim \mathcal{O}(40)$ TB/s), most of which is not practically stored or even analyzedanalyzed entirely. To solve this issue, several filtration steps or triggers have been developed that operate hierarchically to filter the amount of incoming data and reduce the number of events (collision events) from 40 MHz to a manageable 1 kHz. Two triggering steps achieve this:</p>
+            <ul>
+                <li><strong>Level 1 Trigger (L1T):</strong> This is the first trigger that operates mainly on Field Programmable Gate Array (FPGAs) and is responsible for reducing the rate from 40 MHz to 100 kHz.</li>
+                <li><strong>High Level Trigger (HLT):</strong> This is the second trigger that operates on CPU and GPU farms and uses a complete physics analysis (reconstruction) to make the trigger decision. HLT reduces the data rate from 100 kHz to 1 kHz.</li>
+            </ul>
 
-        <div class="math-block">
-        $$
-        D(p) = \left( \prod_{i=0}^{k-1} D_i \right)^{\frac{1}{k}}
-        $$
-        </div>
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_51ae471109dd49c440b017b6dbe1a1aa.jpg" alt="CMS Trigger System">
+                <figcaption>Overview of the CMS Trigger Hierarchy</figcaption>
+            </figure>
 
-        <figure>
-             <img src="https://codimd.web.cern.ch/uploads/upload_c891b920f606a57002313bccdfa549f6.png" alt="Model Implementation">
-        </figure>
+            <p>Given the massive amount of data, a rough resolution (portion of the entire data) of the events is used to make a decision for the L1T, making physics reconstruction algorithms impossible. Hence, L1T is primarily a cut-based trigger, where thresholds for physics observables are set as criteria for trigger conditions. Even though L1T works exceptionally well and has been heavily developed and tuned for quite some time, it remains heavily biased by the physical intuitions and assumptions used to build it.</p>
 
-        <p>The diagram above illustrates the simple implementation of the model. When evaluated and compared with the existing baseline (v4 of AXOL1TL) over a number of Monte Carlo signals that simulate possible exotic signatures, we see an overall improvement, hinting strongly towards the success of the model.</p>
+            <p>The Standard Model (SM) of physics, being one of the most successful theories in modern physics, still fails to account for several phenomena, such as the existence of gravity as a distinct entity from the other fundamental forces, CP Violation, and the existence of dark matter, among others. All these discrepancies have led to theories that try to incorporate these phenomena. For the verification of such theoretical Beyond Standard Model (BSM), the discovery of new BSM particles is necessary. Given that BSM is an uncharted territory that might or might not follow the physical assumptions of the existing L1 Trigger, calls for the development of a new, unbiased trigger, completely from scratch, that can efficiently filter data and remain based entirely on statistical properties rather than physics-based intuitions.</p>
 
-        <div class="table-wrapper">
-        <table>
-            <thead>
-                <tr>
-                    <th>Process</th>
-                    <th>Ours</th>
-                    <th>V4</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr><td>GluGluHToBB_M-125</td><td>83.27</td><td>31.76</td></tr>
-                <tr><td>GluGluHToGG_M-125</td><td>8.76</td><td>4.01</td></tr>
-                <tr><td>GluGluHToGG_M-90</td><td>3.89</td><td>2.98</td></tr>
-                <tr><td>GluGluHToTauTau</td><td>3.23</td><td>1.99</td></tr>
-                <tr><td>GluGluHTo2B2WtoLNu2Q</td><td>41.26</td><td>26.64</td></tr>
-                <tr><td>HHToBB</td><td>80.01</td><td>58.04</td></tr>
-                <tr><td>HHHTo4B2Tau</td><td>74.97</td><td>55.97</td></tr>
-                <tr><td>VBFHToTauTau</td><td>12.27</td><td>11.84</td></tr>
-                <tr><td>VBFHTo2B</td><td>20.96</td><td>13.81</td></tr>
-                <tr><td>WToTauTo3Mu</td><td>0.12</td><td>0.11</td></tr>
-                <tr><td>ttHto2B</td><td>81.47</td><td>65.25</td></tr>
-                <tr><td>ttHto2C</td><td>83.70</td><td>67.83</td></tr>
-            </tbody>
-        </table>
-        </div>
+            <h2>AXOL1TL</h2>
+            <p>Anomaly eXtraction Online L1 Trigger Lightweight in L1 Global Trigger (AXOL1TL) is a trigger based on an anomaly detection algorithm that is deployed as a part of the L1T, which takes in a subset of the Level-1 (L1) objects (measurables) and tries to assign an anomaly score for every event. Events are selected based on their anomaly score, considering fixed-rate budgets.</p>
 
-        <p>The table above shows the efficiency of detecting the Monte Carlo signal when the trigger is operated at a working frequency of 1kHz.</p>
+            <h3>Working of the existing baseline</h3>
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_3cd179da8e14cdd8bde2fb5f2e4a7f2c.png" alt="AXOL1TL Baseline Architecture">
+                <figcaption>Training and deployment of the baseline (v4) model</figcaption>
+            </figure>
 
-        <h2>VAEs with VICReg</h2>
-        <p>We again go back to our discussion on VAEs, as the above method, though interpretable and better performing than the baseline (AXOL1TL v4), has a few shortcomings:</p>
-        <ol>
-            <li><strong>Mahalanobis Distance for Gaussian Mixtures</strong>: The use of GMMs along with the Mahalanobis distance is not well defined when it comes to defining a single composite score/distance/metric. The said approach of using an aggregation function cannot be analytically justified and may lead to unexpected results.</li>
-            <li><strong>Computational Bottlenecks</strong>: The best-performing aggregation method for this use case is the geometric mean. We arrived at this result after extensive experimentation with various aggregation methods, including arithmetic mean, thresholding, and taking the minimum or maximum, among othersc. Implementing the geometric mean is extremely expensive on FPGA boards, making this model effective in theory but challenging to deploy in production.</li>
-        </ol>
+            <p>The diagram above illustrates the training and deployment of the baseline (v4) model. In this report, we discuss how we can improve on this architecture to make the trigger more accurate (in detection), robust (to changing detector conditions), and interpretable (for analysis).</p>
 
-        <p>The question now is whether one can design an estimator (of the MLP type) that can perform GMM clustering and subsequent distance estimation. Given that we are estimating the distance from the highly populated cluster, we can say that a VAE, when trained on these embeddings, can learn to reconstruct these strong cluster centres with more ease compared to the weaker anomalous ones. This is very different from using a VAE directly on top of the data, which can be better understood by revisiting the toy <strong>cylinder problem</strong>. The initial distribution of the data on the cylinder, though taken uniformly (for our ease), can be thought of as a combination of clusters. When density estimation using VAEs is performed on the input space alone, there is a strong likelihood that the model learns the entire distribution, as anomalies are not well separated in the input space. Moreover, due to the high dimensionality, the input space has a wider and more uniform distribution compared to the latent space, where the distribution collapses into clusters since the invariance conditions are enforced using the VICReg loss. The uniform/well-spread distribution on the input space makes it easier for the VAE to learn the entire input space, defeating our intention for it to only learn the statistically significant regions. When trained on the embedding space,, the VAE has a hard time learning to reconstructreconstruct small anomalous regions that are separated from the area of normals and are significantly outnumbered. The plot on the left shows our original input dataset, and the one on the right shows the nature of the embedding space.</p>
+            <p>The above method exhibits a few problems:</p>
+            <ol>
+                <li>The loss (used to train) the original Variational AutoEncoder (VAE) for anomaly detection (AD) does not align well with the final optimisation goal of the model, given that the headless (without Decoder) model no longer represents an autoencoder. Using latent vectors (in this case, their L2 norm) for anomaly detection can be challenging and unpredictable.</li>
+                <li>VAEs do not guarantee any form of explicit clustering in the embedding space where similar samples strictly lie close to each other. Reconstruction error of a point might hint toward it being anomalous, but the same is not always valid for points that are close to each other (or have similar L2 norm).</li>
+                <li>Taking the L2 norm of the latents explicitly assumes that the anomalous samples will always be strictly away from the center, but that might not always be true.</li>
+            </ol>
 
-        <div class="img-row">
-             <img src="https://codimd.web.cern.ch/uploads/upload_9a4712b99bd87ea78f91e908b6e0d6e9.png" style="width: 40%; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 4px;" alt="Input Space">
-             <img src="https://codimd.web.cern.ch/uploads/upload_1be4340ddf67e9ad247f50c6567e537e.png" style="width: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 4px;" alt="Embedding Space">
-        </div>
+            <p>To address these problems, we modify the VAE. The modification will be discussed and developed over the course of the following few sections.</p>
 
-        <p>The distribution on the left (input space) is therefore easier for the VAE to generalize than the one on the right (embedding space). We can enforce this idea further by training a shallow VAE for the density estimation since embeddings derived from VICReg are disentangled, simplified and smaller in dimensionality making a shallow VAE sufficient to learn the normals Moreover using this setup we also successfully managed to incorporate some degree of physics information (that we can control through the augmentation) and detector information into the system by forcing the invariance. This lets us take the next step, where we add a VAE on top of the VICReg embedding. We follow the given recipe:</p>
+            <h3>Self-Supervised Learning, metric and clustering.</h3>
+            <p>Self-Supervised Learning (SSL) is a ML paradigm that focuses on the production of information-rich feature vectors from a dataset without explicitly using any labels. To achieve this, SSL models are trained on a surrogate task that utilizes pseudo labels from training and loss computation. For this study, we primarily focus on the VICReg, a well-celebrated SSL technique.</p>
 
-        <ol>
-            <li>Train VICReg with a suitable encoder on the raw data using physics-inspired and context-motivated augmentations.</li>
-            <li>Strip away the encoder of the VICReg and freeze the weights.</li>
-            <li>Extract the embeddings of the VICReg space.</li>
-            <li>Train a simple VAE on the embedding space.</li>
-            <li>Remove the variational part of the VAE along with the resampling step and convert it to an AE.</li>
-            <li>Use the reconstruction loss between the input to the VAE (now AE) and output as the anomaly score.</li>
-        </ol>
+            <h4>VICReg</h4>
+            <p><a href="https://arxiv.org/abs/2105.04906">VICReg: Variance-Invariance-Covariance Regularization for Self-Supervised Learning</a> work by training on the surrogate task of generating embedding spaces that are invariant to specific augmentation spaces. This is achieved by using a Siamese-like setup, where two views of the same event are used, but both have been augmented to different degrees. The Euclidean distance in the embedding space between these two views is then minimised using gradient descent.</p>
 
-        <figure>
-             <img src="https://codimd.web.cern.ch/uploads/upload_f8184d332663ce6ecc661e90049d00f9.png" alt="VAE on VICReg">
-        </figure>
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_b4cf6c75203f0b7c827e481f2518c359.png" alt="VICReg Training Procedure">
+                <figcaption>VICReg Training Procedure <a href="https://arxiv.org/pdf/2105.04906">Bardes et al.</a></figcaption>
+            </figure>
 
-        <p>The above setup makes it very easy to deploy the above model onto the FPGA board, given that it is a stack of MLPs. Moreover, it outperforms the GMM+VICReg setup since the VAE backbox now manages everything. The comparison of efficiency in detecting exotic Monte-Carlo signals with respect to the last deployment (vanilla v4) is shown below.</p>
+            <p>Along with the MSE loss that acts across the two projection vectors Z, to ensure stability against collapse and the non-triviality of the embedding space, we have covariance and variance regularization terms. The covariance component prevents the embedding dimensions from capturing the same information. In contrast, the variance component prevents all embedding vectors in a batch from collapsing to a single point in the representation space.</p>
 
-        <p>The efficiency numbers for the V5 (ours) and V4 (old baseline) are as follows</p>
+            <h4>Metric</h4>
+            <p>When working with latent spaces, we are often interested in defining a metric on them. The definition of metric or distance in the embedding space provides insight into the exact nature of the embedding space. The metric on the latent space of an autoencoder is often ill-defined due to its erratic nature. Even though VAEs have partially solved this problem by making the space continuous through variational sampling, where two similar samples have similar embeddings due to the variational step, which facilitates the definition of local structures, the metric definition on a global level remains ill-defined. VICReg addresses this by introducing augmentations that often introduce inductive biases within the system, making the global structures clearer.</p>
 
-        <div class="table-wrapper">
-        <table>
-            <thead>
-                <tr>
-                    <th>Signal Name</th>
-                    <th>VICReg + GMM (ours)</th>
-                    <th>V4 (Baseline)</th>
-                    <th>VICReg + VAE(ours, deployed)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr><td>GluGluHToBB_M-125</td><td>83.27</td><td>31.76</td><td>95.93771</td></tr>
-                <tr><td>GluGluHToGG_M-125</td><td>8.76</td><td>4.01</td><td>37.77188</td></tr>
-                <tr><td>GluGluHToGG_M-90</td><td>3.89</td><td>2.98</td><td>15.854626</td></tr>
-                <tr><td>GluGluHToTauTau</td><td>3.23</td><td>1.99</td><td>4.831854</td></tr>
-                <tr><td>GluGluHTo2B2WtoLNu2Q</td><td>41.26</td><td>26.64</td><td>53.692781</td></tr>
-                <tr><td>HHToBB</td><td>80.01</td><td>58.04</td><td>84.302641</td></tr>
-                <tr><td>HHHTo4B2Tau</td><td>74.97</td><td>55.97</td><td>81.811932</td></tr>
-                <tr><td>VBFHToTauTau</td><td>12.27</td><td>11.84</td><td>26.036048</td></tr>
-                <tr><td>VBFHTo2B</td><td>20.96</td><td>13.81</td><td>27.53418</td></tr>
-                <tr><td>WToTauTo3Mu</td><td>0.12</td><td>0.11</td><td>0.270025</td></tr>
-                <tr><td>ttHto2B</td><td>81.47</td><td>65.25</td><td>86.183296</td></tr>
-                <tr><td>ttHto2C</td><td>83.7</td><td>67.83</td><td>88.221684</td></tr>
-            </tbody>
-        </table>
-        </div>
+            <p>To get a stronger intuition of this idea, we will take a real-life example. We consider a cylindrical system ($r\cos{t}$,$r\sin{t}$,$h$) where the rotation across the axis (of the cylinder) is invariant to our use cases. We can think of it as a coordinate change. We fix the radius to 1 and the dimension of the embedding space to 2 for easier visualization. The input dataset looks like</p>
 
-        <p>The efficiency vs Rate plot is given below. For the same budget (trigger rate independent of other triggers), both the v4 and v5 can be compared using the efficiency at the AXOL1TL medium rate.</p>
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_524434a78c63737bdc87fe6a67a24582.png" style="width: 45%;" alt="Input Dataset Visualization"/>
+            </figure>
 
-        <figure>
-             <img src="https://codimd.web.cern.ch/uploads/upload_d1658051797d329cdd1c036305dc287e.png" alt="Efficiency vs Rate Plot">
-        </figure>
+            <p>When we train a VAE and a VICReg encoder (with the same architecture) on this dataset, we observe the following latent space.</p>
 
-        <p>For more details on the Model Architecture and performance, see</p>
-        <ol>
-            <li><a href="https://cds.cern.ch/record/2904695/files/DP2024_059.pdf">https://cds.cern.ch/record/2904695/files/DP2024_059.pdf</a></li>
-            <li><a href="https://mlflow-deploy-mlflow.app.cern.ch/#/experiments/564166212411965545/runs/cfdddb53e6dc4fc6a243ae980d66348a/artifacts">Model Report</a></li>
-        </ol>
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_03236af6f7bce7ab16e94df853048b28.png" alt="Latent Space Comparison"/>
+                <figcaption>In the above diagram we chose $Z \in \{-0.5,\,-0.25,\,0,\,0.25,\,0.5\}$ hence the 5 different clusters.</figcaption>
+            </figure>
 
-        <p>Given the scale of the project and the engineering required to deploy the trigger we did a significant amount of work on the MLOPs side, which is referred to here.</p>
-    </article>
+            <p>As is already evident, VICReg does a fantastic job of removing the angular component from within the data. We can use the MSE distance between the points in this case for our theta invariant task. The same is not true for VAE; as it is an information-preserving system, it cannot eliminate the angular component, making the concept of distance in our latent space ambiguous. One thing to exercise caution in this entire argument is that the distance is only relevant with respect to proper augmentations. With only Gaussian blurring, we won't be able to define a metric even with our VICReg setup. Removing the rotation from the augmentation space renders our metric for VICReg's latent space ill-defined for our task at hand, where rotation along the axis does not alter the system. Below, we illustrate the nature of the latent space of VICReg without rotation augmentation.</p>
+
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_54df15c45a3341c5ad9123e3eedc7db9.png" alt="VICReg without rotation"/>
+            </figure>
+
+            <p>Using different augmentation strategies, we can easily encode various types of invariances within our system, making VICReg an ideal choice to build an embedding space. The metric in this space is the Euclidean distance between two points, indicating how the two separate events differ from each other. Moreover, within each cluster of points in the VICReg space, we can expect samples that are physically invariant to one another (i.e., samples that have different representations in $R^n$ but have similar physical meanings, such as Lorentz-boosted samples or rotated samples). Building systems that can cluster our anomalous samples together is our first step in developing our unified anomaly detection framework.</p>
+
+            <h2>Anomaly Detection, Density and Clusters</h2>
+            <p>VAEs are one of the best candidate models for anomaly detection (AD). VAEs work well in AD since they fail to reconstruct points that lie in low-density regions, which the model has difficulty learning. The figure below illustrates the operation of a VAE in the context of anomaly detection, when trained on a dataset of 5 overlapping Gaussians in a 2D space.</p>
+
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_ab828337b29d3e37f8a7807d6a013ab7.png" alt="VAE Anomaly Detection"/>
+            </figure>
+
+            <p>As we can see, when using the standard reconstruction loss, we can correctly identify the 5 cluster centers along with their distribution. In contrast, the surrounding region has a higher reconstruction loss, as there are fewer pointers available there. Although the $||z||_2$ (on the right) or $\mathbf{z}^\top \mathbf{z}$ setup without the Decoder (following the v4 architecture of AXOL1TL) works well in the vicinity of the cluster and in finding the global region of high density, but fails to capture the details of the distributions.</p>
+
+            <p><strong>Out-of-the-box-distribution</strong> VAEs, as demonstrated, can have good anomaly detection capacities until they encounter the <strong>Out-of-the-box-distribution</strong> problem, in which case the VAE learns too well about the dataset and ends up reconstructing everything (including the anomalies) perfectly, making it a poor choice for anomaly detection in those cases. This problem can get further aggravated when the training dataset itself contains the anomalous datapoints (true in our case).</p>
+
+            <p>On the other hand, although we have established the paradigm of latent space creation through VICReg and formed tight clusters of points, we have yet to address the problem of identifying clusters where our anomalies or rare samples reside.</p>
+
+            <h2>Mahalanobis Distance, Gaussian Mixtures and Anomaly Detection</h2>
+            <p>Self-supervised methods, such as VICReg, due to their inherent nature of minimizing invariance loss over the embedding space, tend to create clusters in the latent embedding space. We can broadly classify the entire dataset D to be composed of three components:</p>
+
+            <ol>
+                <li><strong>Clusters of Normals (Inliers):</strong> By normalies, we understand the physics processes/signals that occur frequently and can be readily found using the existing physics-based triggers. These inliers are defined based on their statistical significance, and such clusters are considered to have a large number of elements and strong distribution peaks. These clusters are importantimportant for Standard Model studies,, but given that we are here trying to look for exotic signatures that are statistically outnumbered,, we refer to these standard physics processes as our normals. We are not particularly interested in probing these clusters in this work, given the extensive amount of research that has already been conducted on such processes. Let's denote them by the notation $N_i$, we can have many such physics processes, all of which can be categorised into their own clusters as $N_0, N_1...N_n$</li>
+                <li><strong>Cluster of Anomalies:</strong> Given the pretext that the anomalies follow a different form of distribution pattern within the dataset, given that they originate from exotic physics processes, we can consider these anomalies to be contained within their own clusters, just like the nomalies, except these cluster centers are separated from $N_i$. Given that we assume these anomalies are indicative of exotic physics signatures, they must be present in clusters. The absence of clusters for anomalies means they can never be detected with certainty using our framework, which points towards a deeper problem, such as poor detector resolution or a poor choice of augmentation/architecture. Lets call these $A_0,..A_1,...A_a$</li>
+                <li><strong>Stray points:</strong> For the sake of completion, we can consider the remaining points to be spread across the embedding space. These points are generally statistical noise and can be attributed to various sources, including hadronic noise and detector issues. We can refer to all these points $S_0, S_1... S_s$</li>
+            </ol>
+
+            <p>Given that there does not exist a rigid definition distinguishing $S$ and $A$, and that in the absence of a well-defined embedding space or identifiable anomalies, $S$ may consist of shallow distributions or even isolated points—which are inherently difficult to model—we absorb all $S$ into $A$.</p>
+
+            <p>We can now say $D = \left( \bigcup_{i \in n} N_i \right) \times \left( \bigcup_{j \in J} A_j \right)$</p>
+
+            <p>Now, finding $\bigcup_{i \in I} N_i$ is straightforward, as these correspond to some of the most well-studied processes in high-energy physics (HEP). However, we deliberately refrain from invoking physical intuition, as our goal is to construct an unbiased system. Instead, we adopt the statistical definition of $N_i$ — treating them as the most well-populated distributions.</p>
+
+            <p>We take a hyper-parameter $k \in \mathrm{N}$ assuming that we have $K$ clusters of normals. Now we fit a Gaussian mixture model (GMM) on the latent space with $k$ gaussians, making sure that all our standard physics signatures get absorbed within these $k$ clusters. Now, for any point $p$ on the embedding space, we can find how anomalous it is by finding how far it is from these cluster centers.</p>
+
+            <p>Had the value of $k$ been 1. We could have used the Mahalanobis distance for finding the distance of $p$ from the cluster center. For finding the distance of a point $p$ from $k$ gaussians, one can use methods like <a href="https://ieeexplore.ieee.org/document/818035">these</a>. Given that such methods are extremely difficult to implement on an FPGA board (where we want to deploy our model), we skip it. Instead, we try to compute $D_i$ for $p$, where we define $D_i$ using the mahalanobis distance as</p>
+
+            <div class="math-block">
+            $$
+            D_i(\mathbf{p}) = \sqrt{(\mathbf{p} - \boldsymbol{\mu_i})^{T} \, \mathbf{\Sigma_i}^{-1} \, (\mathbf{p} - \boldsymbol{\mu_i})}
+            $$
+            </div>
+
+            <p><strong>where:</strong></p>
+            <ul>
+                <li><strong>$\mathbf{p}$</strong> — point or event in the embedding space whose anomaly score is being evaluated.</li>
+                <li><strong>$D_i(\mathbf{p})$</strong> — Mahalanobis distance of point $\mathbf{p}$ from the $i^{\text{th}}$ cluster center.</li>
+                <li><strong>$\boldsymbol{\mu_i}$</strong> — mean of the $i^{\text{th}}$ cluster in the embedding space.</li>
+                <li><strong>$\mathbf{\Sigma_i}$</strong> — covariance matrix of the $i^{\text{th}}$ gaussian on the embedding space.</li>
+            </ul>
+
+            <p>Now, given that we are considering our embedding space to be dominated by K clusters, we can use an aggregation method to combine $D_0, D_1,..., D_K$ to get a single composite anomaly metric. One can choose different metrics, such as the arithmetic mean, min-max, and geometric mean, among others. In this work, we found that the geometric mean outperforms other aggregation metrics for the task at hand.<br>Hence, we can write the anomaly score as:</p>
+
+            <div class="math-block">
+            $$
+            D(p) = \left( \prod_{i=0}^{k-1} D_i \right)^{\frac{1}{k}}
+            $$
+            </div>
+
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_c891b920f606a57002313bccdfa549f6.png" alt="Model Implementation">
+            </figure>
+
+            <p>The diagram above illustrates the simple implementation of the model. When evaluated and compared with the existing baseline (v4 of AXOL1TL) over a number of Monte Carlo signals that simulate possible exotic signatures, we see an overall improvement, hinting strongly towards the success of the model.</p>
+
+            <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Process</th>
+                        <th>Ours</th>
+                        <th>V4</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>GluGluHToBB_M-125</td><td>83.27</td><td>31.76</td></tr>
+                    <tr><td>GluGluHToGG_M-125</td><td>8.76</td><td>4.01</td></tr>
+                    <tr><td>GluGluHToGG_M-90</td><td>3.89</td><td>2.98</td></tr>
+                    <tr><td>GluGluHToTauTau</td><td>3.23</td><td>1.99</td></tr>
+                    <tr><td>GluGluHTo2B2WtoLNu2Q</td><td>41.26</td><td>26.64</td></tr>
+                    <tr><td>HHToBB</td><td>80.01</td><td>58.04</td></tr>
+                    <tr><td>HHHTo4B2Tau</td><td>74.97</td><td>55.97</td></tr>
+                    <tr><td>VBFHToTauTau</td><td>12.27</td><td>11.84</td></tr>
+                    <tr><td>VBFHTo2B</td><td>20.96</td><td>13.81</td></tr>
+                    <tr><td>WToTauTo3Mu</td><td>0.12</td><td>0.11</td></tr>
+                    <tr><td>ttHto2B</td><td>81.47</td><td>65.25</td></tr>
+                    <tr><td>ttHto2C</td><td>83.70</td><td>67.83</td></tr>
+                </tbody>
+            </table>
+            </div>
+
+            <p>The efficiency table above shows the efficiency of detecting the Monte Carlo signal when the trigger is operated at a working frequency of 1kHz.</p>
+
+            <h2>VAEs with VICReg</h2>
+            <p>We again go back to our discussion on VAEs, as the above method, though interpretable and better performing than the baseline (AXOL1TL v4), has a few shortcomings:</p>
+            <ol>
+                <li><strong>Mahalanobis Distance for Gaussian Mixtures</strong>: The use of GMMs along with the Mahalanobis distance is not well defined when it comes to defining a single composite score/distance/metric. The said approach of using an aggregation function cannot be analytically justified and may lead to unexpected results.</li>
+                <li><strong>Computational Bottlenecks</strong>: The best-performing aggregation method for this use case is the geometric mean. We arrived at this result after extensive experimentation with various aggregation methods, including arithmetic mean, thresholding, and taking the minimum or maximum, among othersc. Implementing the geometric mean is extremely expensive on FPGA boards, making this model effective in theory but challenging to deploy in production.</li>
+            </ol>
+
+            <p>The question now is whether one can design an estimator (of the MLP type) that can perform GMM clustering and subsequent distance estimation. Given that we are estimating the distance from the highly populated cluster, we can say that a VAE, when trained on these embeddings, can learn to reconstruct these strong cluster centres with more ease compared to the weaker anomalous ones. This is very different from using a VAE directly on top of the data, which can be better understood by revisiting the toy <strong>cylinder problem</strong>. The initial distribution of the data on the cylinder, though taken uniformly (for our ease), can be thought of as a combination of clusters. When density estimation using VAEs is performed on the input space alone, there is a strong likelihood that the model learns the entire distribution, as anomalies are not well separated in the input space. Moreover, due to the high dimensionality, the input space has a wider and more uniform distribution compared to the latent space, where the distribution collapses into clusters since the invariance conditions are enforced using the VICReg loss. The uniform/well-spread distribution on the input space makes it easier for the VAE to learn the entire input space, defeating our intention for it to only learn the statistically significant regions. When trained on the embedding space,, the VAE has a hard time learning to reconstructreconstruct small anomalous regions that are separated from the area of normals and are significantly outnumbered. The plot on the left shows our original input dataset, and the one on the right shows the nature of the embedding space.</p>
+
+            <div class="img-row">
+                <img src="https://codimd.web.cern.ch/uploads/upload_9a4712b99bd87ea78f91e908b6e0d6e9.png" style="width: 40%; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 4px;" alt="Input Space">
+                <img src="https://codimd.web.cern.ch/uploads/upload_1be4340ddf67e9ad247f50c6567e537e.png" style="width: 50%; box-shadow: 0 4px 12px rgba(0,0,0,0.05); border-radius: 4px;" alt="Embedding Space">
+            </div>
+
+            <p>The distribution on the left (input space) is therefore easier for the VAE to generalize than the one on the right (embedding space). We can enforce this idea further by training a shallow VAE for the density estimation since embeddings derived from VICReg are disentangled, simplified and smaller in dimensionality making a shallow VAE sufficient to learn the normals Moreover using this setup we also successfully managed to incorporate some degree of physics information (that we can control through the augmentation) and detector information into the system by forcing the invariance. This lets us take the next step, where we add a VAE on top of the VICReg embedding. We follow the given recipe:</p>
+
+            <ol>
+                <li>Train VICReg with a suitable encoder on the raw data using physics-inspired and context-motivated augmentations.</li>
+                <li>Strip away the encoder of the VICReg and freeze the weights.</li>
+                <li>Extract the embeddings of the VICReg space.</li>
+                <li>Train a simple VAE on the embedding space.</li>
+                <li>Remove the variational part of the VAE along with the resampling step and convert it to an AE.</li>
+                <li>Use the reconstruction loss between the input to the VAE (now AE) and output as the anomaly score.</li>
+            </ol>
+
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_f8184d332663ce6ecc661e90049d00f9.png" alt="VAE on VICReg">
+            </figure>
+
+            <p>The above setup makes it very easy to deploy the above model onto the FPGA board, given that it is a stack of MLPs. Moreover, it outperforms the GMM+VICReg setup since the VAE backbox now manages everything. The comparison of efficiency in detecting exotic Monte-Carlo signals with respect to the last deployment (vanilla v4) is shown below.</p>
+
+            <p>The efficiency numbers for the V5 (ours) and V4 (old baseline) are as follows</p>
+
+            <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Signal Name</th>
+                        <th>VICReg + GMM (ours)</th>
+                        <th>V4 (Baseline)</th>
+                        <th>VICReg + VAE(ours, deployed)</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr><td>GluGluHToBB_M-125</td><td>83.27</td><td>31.76</td><td>95.93771</td></tr>
+                    <tr><td>GluGluHToGG_M-125</td><td>8.76</td><td>4.01</td><td>37.77188</td></tr>
+                    <tr><td>GluGluHToGG_M-90</td><td>3.89</td><td>2.98</td><td>15.854626</td></tr>
+                    <tr><td>GluGluHToTauTau</td><td>3.23</td><td>1.99</td><td>4.831854</td></tr>
+                    <tr><td>GluGluHTo2B2WtoLNu2Q</td><td>41.26</td><td>26.64</td><td>53.692781</td></tr>
+                    <tr><td>HHToBB</td><td>80.01</td><td>58.04</td><td>84.302641</td></tr>
+                    <tr><td>HHHTo4B2Tau</td><td>74.97</td><td>55.97</td><td>81.811932</td></tr>
+                    <tr><td>VBFHToTauTau</td><td>12.27</td><td>11.84</td><td>26.036048</td></tr>
+                    <tr><td>VBFHTo2B</td><td>20.96</td><td>13.81</td><td>27.53418</td></tr>
+                    <tr><td>WToTauTo3Mu</td><td>0.12</td><td>0.11</td><td>0.270025</td></tr>
+                    <tr><td>ttHto2B</td><td>81.47</td><td>65.25</td><td>86.183296</td></tr>
+                    <tr><td>ttHto2C</td><td>83.7</td><td>67.83</td><td>88.221684</td></tr>
+                </tbody>
+            </table>
+            </div>
+
+            <p>The efficiency vs Rate plot is given below. For the same budget (trigger rate independent of other triggers), both the v4 and v5 can be compared using the efficiency at the AXOL1TL medium rate.</p>
+
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_d1658051797d329cdd1c036305dc287e.png" alt="Efficiency vs Rate Plot">
+            </figure>
+
+            <p>For more details on the Model Architecture and performance, see</p>
+            <ol>
+                <li><a href="https://cds.cern.ch/record/2904695/files/DP2024_059.pdf">https://cds.cern.ch/record/2904695/files/DP2024_059.pdf</a></li>
+                <li><a href="https://mlflow-deploy-mlflow.app.cern.ch/#/experiments/564166212411965545/runs/cfdddb53e6dc4fc6a243ae980d66348a/artifacts">Model Report</a></li>
+            </ol>
+        </article>
+    </div>
+
+    <!-- Page 2: MLOps at 40 MHz -->
+    <div id="mlops-content" class="content-section">
+        <article>
+            <h1>MLoPs for ML Trigger at 40 MHz</h1>
+
+            <h2>Introduction</h2>
+            <p>The CMS experiment at CERN records data at a rate of approximately 40 Terabytes per second. This level of information cannot be stored in storage systems. The amount of data is on such a scale that even online analysis of it on CPU and GPU farms is not possible. CMS records data at a frequency of 40 MHz (40 million events every second). To solve this problem, an elaborate trigger system exists that filters the data from the staggering rate of 40 MHz down to as small as 1kHz. This is mainly done in two stages:</p>
+            
+            <ol>
+                <li><strong>Level 1 Trigger (L1T):</strong> This is the first trigger that operates mainly on Field Programmable Gate Array (FPGAs) and is responsible for reducing the rate from 40 MHz to 100 kHz.</li>
+                <li><strong>High Level Trigger (HLT):</strong> This is the second trigger that operates on CPU and GPU farms and uses a complete physics analysis (reconstruction) to make the trigger decision. HLT reduces the data rate from 100 kHz to 1 kHz.</li>
+            </ol>
+
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_5f3e7294f0b11652a2772904d721d8d2.jpg" alt="CMS Trigger System">
+            </figure>
+
+            <p>The L1T comprises a combination of various trigger subsystems. One such system is the AXOL1TL, which stands for Anomaly eXtraction Online L1 Trigger Lightweight in the L1 Global Trigger. AXOL1TL is a completely ML-based trigger that is designed to trigger events that are unbiased from the physical intuitions used to build the other trigger systems, such that it can detect new exotic signatures. For more details regarding the ML side of the trigger and its associated development, please refer to this link.</p>
+
+            <p>The CMS detector goes through recalibration every few months. This necessitates the deployment and development of models each time the detector is recalibrated. Moreover, machine learning models can often start to diverge when the incoming input statistics change due to progressive changes in detector condition. All these factors reduce the lifespan of any ML-based trigger, and hence, such triggers require frequent redeployment. In this report, we will cover some MLoPs and infrastructures that we have developed over the last year to ease the task of model redeployment and eventually pave the way towards continual learning and fully autonomous trigger systems.</p>
+
+            <h2>Recipe for an ML Trigger at 40 MHz</h2>
+            <p>Before we delve deep into the infrastructure needed to develop such systems, we need to understand the overall high-level process of building and deploying such a trigger.</p>
+
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_04c8d2ddb1891a84b312355e85aedb6e.png" alt="High Level Process">
+            </figure>
+
+            <ol>
+                <li><strong>Dataset Curation:</strong> For new training run curation, new data is necessary, given that the data distribution of the detector changes after every new calibration. The data curation consists of two steps:
+                    <ul>
+                        <li><strong>Zerobias:</strong> The zerobias (ZB) refers to the dataset that is directly collected from the detector. This dataset undergoes no trigger or physics selection, making it completely independent of the trigger components and unbiased.</li>
+                        <li><strong>Monte Carlo:</strong> To test the performance of the trigger, various exotic physics processes are simulated using the Monte Carlo (MC) simulation. This set is used only during validation and not for training. MC is difficult to acquire due to the associated computational cost. Hence, we treat MC slightly differently when it comes to MLOps.</li>
+                    </ul>
+                </li>
+                <li><strong>Model Training:</strong> Model Training step consists of treating the acquired ZB and MC to make it ML-friendly. Following this, the model is trained following a fixed recipe that we developed through separate testing. The models are trained in PyTorch with quantisation-aware training. The hyperparameters are optimized using <a href="https://github.com/optuna/optuna">Optuna</a> and <a href="https://arxiv.org/abs/1810.05934">ASHA</a>, and the overall distributed setup is managed by SLURM and RAY.</li>
+                <li><strong>Deployment:</strong> The model deployment stage consists of taking the trained weights from PyTorch and building the model using HLS4ML, which converts into Verilog. This is done on a hardware machine. After this, the efficiencies are matched for the hardware model and the original one. Given a green signal from the team and the trigger committee, we deploy it. This step has been intentionally kept manual to maintain a degree of freedom in triggering.</li>
+                <li><strong>Divergence Tracker:</strong> The final step can be considered as an entirely separate system, too. The task of the divergence tracker, also known as the Scouting Analyser, is to continually stream data from the detector and compare the model output statistics over time. This system helps in knowing when the model starts to perform poorly and a new deployment is needed.</li>
+            </ol>
+
+            <p>During my Technical Studentship, I primarily worked on developing steps 1 (refactoring), 2 (complete refactoring and redevelopment), and 4 (built from scratch). The deployment part is still mostly manual, but given that the most time-consuming steps, being steps 1 and 2, are now automated, the overall time to build a new trigger and have it deployed has reduced from a few weeks to a couple of days. This report will skip steps 1 and 3 of the pipeline, as it contains numerous internal components and code related to the experiment that have not yet been approved for public release.</p>
+
+            <h2>Model Training</h2>
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_d4b9e3cdc2bc1206cbe2cd9c7bab66a3.png" alt="Model Training Schematic">
+            </figure>
+
+            <p>The code associated with the above setup can be found <a href="https://github.com/dc250601/TechStudent24/tree/main/AXOL1TL-Training">here</a>.</p>
+            <p>The model training schematic is shown above. The overall training process, along with hyperparameter tuning, can be broken down into a few successive steps.</p>
+
+            <ol>
+                <li>For all sorts of model training, we have a configuration.yml that we use to set up everything.</li>
+                <li>The <a href="https://github.com/dc250601/TechStudent24/tree/main/AXOL1TL-Training/axo/data_util">data_util</a> subrepository handles the data processing and prepares it for training. The raw data is read from the CERN storage, then processed and stored as a temporary H5 file that will be used for training.</li>
+                <li>Once the data preparation is complete and a suitable training method is found from the config, the associated <a href="https://github.com/dc250601/TechStudent24/tree/main/AXOL1TL-Training/axo/recipies">recipe</a> is launched. This recipe calls several RAY servers that start the training process.</li>
+                <li>The RAY cluster begins the hyper-parameter optimisation sampling, which Optuna controls, and the early stopping criteria are managed by ASHA. This RAY cluster can be set up in two ways.
+                    <ul>
+                        <li>Using SLURM to schedule large-scale search and training runs. The entry point to these codes are through <a href="https://github.com/dc250601/TechStudent24/blob/main/AXOL1TL-Training/axo/job_slurm_cvae.sh">1</a> and <a href="https://github.com/dc250601/TechStudent24/blob/main/AXOL1TL-Training/axo/job_slurm_lvae.sh">2</a></li>
+                        <li>Using standalone compute nodes. The entry point in this case is simply the recipe file itself.</li>
+                    </ul>
+                </li>
+                <li>After completion of the training run and selection of the best model, the pipeline moves toward creating various plots and physics analysis. Once all the analysis is complete, the pipeline begins creating an HTML report that provides details of the entire run. This report is handy and helps with rapidly assessing the model's performance. The entire code for this step is <a href="https://github.com/dc250601/TechStudent24/blob/main/AXOL1TL-Training/axo/utilities/display.py">here</a>.</li>
+                <li>Finally, the pipeline starts to put all these together into an H5 file. This includes all configurations, training data, Monte Carlo results, model history, and plots. The H5 is stored for future use and is also picked up by the deployment stage.</li>
+            </ol>
+
+            <h2>Divergence Tracker</h2>
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_9f1ea72bf22ac163f87658bc159e4560.png" alt="Scouting Analyser System">
+            </figure>
+
+            <p>The diagram shows the schematic of the Scouting Analyser System. This is the same system used to track divergences in online anomaly detection performance.</p>
+
+            <h3>Processing Pipeline</h3>
+            <p><strong>Input FIFO:</strong> The data for our pipeline comes from the L1 Scouting System. The L1 Scouting system streams a subset of the complete data that passes through the L1 Trigger and stores it on tape for future analysis. Before passing it to tape, the system temporarily stores it on the CERN storage disk, which can be accessed readily. Given the massive rate of this data, ~1 TB every hour when the system is running. The system stores data for only 24 to 48 hours on the disk. Hence, this system acts like a FIFO channel.</p>
+
+            <h4>Stage 0 (Data Ingestion)</h4>
+            <p>The purpose of Stage 0 is to Ntuple the raw root files into a suitable format after reading them from the temporary storage disk. Moreover the first stage directly writes the Ntulpes to <code>/dev/shm/StoreStage0/</code> to prevent IO bottlenecks down the line. This stage operates with 64 threads, all of which access a unique root file according to the FIFO schema. The benefit of using 64 threads in parallel for the ntuplising part is two-fold:</p>
+            <ol>
+                <li>The read write speed of a single thread on the CERN files system remains capped making it necessary to use multiple threads to prevent information bottleneck and make it possible to transfer ~1Tb data per hour.</li>
+                <li>The Ntuplising step is extremely slow, although written in C++, the step handles a major chunk of data pre-processing. Moreover, this step filters much redundant event-level information, making it the slowest and the heaviest step in the entire pipeline.</li>
+            </ol>
+            <p>Each '.root' file produced in this step contains ~70 million events and 23.31 seconds of data taking, or 1 Lumisection of data.</p>
+
+            <h4>Stage 1 Data Pre-processing (64 Threads)</h4>
+            <ul>
+                <li>Input: ROOT files from <code>/dev/shm/StoreStage0/</code></li>
+                <li>Output: Zarr format files in <code>/dev/shm/StoreStage1/</code></li>
+            </ul>
+            <p>This step is executed by 32 parallel threads, all of which access the same root file located in <code>/dev/shm/StoreStage0/</code>. This stage reads and extracts the hardware values of the L1 trigger objects (Muons, E/Gamma, Jets, Energy Sums) and pre-processes them. Additionally, it stores the associated metadata for every event it processes for future use. All 32 threads write in parallel to 32 different zarr files into <code>/dev/shm/StoreStage1/</code>.</p>
+
+            <h4>Stage 2: Model Inference (16 Threads + 1 GPU)</h4>
+            <ul>
+                <li>Input: Zarr files from Stage 1</li>
+                <li>Output: Zarr files with AXOL1TL scores in <code>/dev/shm/StoreStage2/</code></li>
+            </ul>
+            <p>This step runs on 16 CPU threads, all of which share a single H100 GPU. Each of these threads loads the quantized Keras model. Following this, it reads from the zarr files created in stage 1 and runs inference on them. The anomaly scores calculated in this step are stored in Zarr format again in <code>/dev/shm/StoreStage2/</code>.</p>
+
+            <h4>Stage 3: Histogram Generation (8 Threads)</h4>
+            <ul>
+                <li>Input: Score files from Stage 2</li>
+                <li>Output: Histogram shards in <code>/dev/shm/StoreStage3/</code></li>
+            </ul>
+            <p>This stage operates on a single thread, where it reads the Zarr files from the previous step that contain the anomaly scores and events, and creates bins with a range of [0, 20000] and a width of 1. Following this, it converts the histogram to sparse format (only non-zero bins are stored) and stores it in a text-encoded file with the suffix <code>.axo_shards</code>. The metadata for the range of events associated with the histogram is also stored in this shard.</p>
+
+            <h4>Stage 4: Aggregation & Storage</h4>
+            <ul>
+                <li>Input: Histogram shards from Stage 3</li>
+                <li>Output: Final histograms in <code>/eos/project/c/cms-axol1tl/Pipeline/Scouting/ScoreStream</code></li>
+            </ul>
+            <p>This is again a process running on a single thread. This process scans the memory to find all the available shards and merges the 32 shards that belonged to the same lumisection. This also detects and removes duplicate shards that may have occurred due to racing conditions or failures in the inference step. The 32 shards of a single lumisection are merged into a histogram, which is stored in a sparse format with text encoding, using a '.axo' suffix, along with associated UTC timestamps.</p>
+
+            <h4>Tracker: Resource Monitoring</h4>
+            <p>The tracker monitors the memory and disk usage across the different stages</p>
+
+            <h3>50 Hz Rate Monitoring</h3>
+            <p>One important purpose of the above system is to monitor the raw rate at 50 Hz, which is the pure rate. The raw rate is the number of events that the trigger is allowed to pass through. The Pure rate can be though of the number of events that AXOL1TL uniquely pass and these events do not belong to any other trigger in the L1 Trigger System. Given that there is a lot of overlap between different triggers, it is not uncommon to find a very high raw rate (number of events passing through the trigger) for a nominal pure rate (number of <em>unique</em> events passing through the trigger). Even though the pure rate of 50 Hz has a sufficiently large associated raw rate, the thresholds to change significantly with undetected conditions, given that the L1 rate is close to kHz, which is orders of magnitude larger than this rate. The 50 Hz Rate and its thresholds are regularly monitored, and having these numbers as close as possible to real trigger conditions is important for the proper functioning of the trigger. This system gives a window where the 50 Hz rate numbers and their associated thresholds can be easily calculated by tapping the output of StoreStage2.</p>
+
+            <h3>Retrain Trigger</h3>
+            <p>Continual learning is something that we started our discussion with. For continual learning to be effective, it requires a trigger that activates the model retraining and redeployment procedures. This can be easily done within this system by monitoring the statistics it produces. Moreover, the retrain trigger has to curate the zero-bias for retraining the trigger. This is something that StoreStage1 handles, where the processed files are stored.</p>
+
+            <h3>Large Scale Statistics</h3>
+            <p>When working with anomaly detection, look into the tails of the anomaly distribution. To investigate this statistically rare region, one often needs many statistics, which can take a considerable amount of time to gather. Using the outputs of this system, statistics of ~1 to ~10 billion points are easily achievable, making studies on the tails of the anomaly distribution more effective.</p>
+
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_d6075cf7ae12a8c84407614651e02e23.png" alt="Heatmap of Anomaly Score">
+                <figcaption>The above heatmap illustrates the distribution of the anomaly score on the x-axis and its variation across different lumisections or time steps.</figcaption>
+            </figure>
+
+            <figure>
+                <img src="https://codimd.web.cern.ch/uploads/upload_b02cab90618f34fd57f2f726cfd128ee.png" alt="Raw Rate Variation">
+                <figcaption>The above plot shows the variation of the raw rate with different lumisections.</figcaption>
+            </figure>
+        </article>
+    </div>
+
 </div>
+
+<script>
+    function switchTab(tabId) {
+        // Toggle Buttons
+        const buttons = document.querySelectorAll('.toggle-btn');
+        buttons.forEach(btn => btn.classList.remove('active'));
+        
+        // Toggle Content
+        const contents = document.querySelectorAll('.content-section');
+        contents.forEach(content => content.classList.remove('active'));
+
+        // Activate selected
+        if (tabId === 'rnd') {
+            document.querySelector('#rnd-content').classList.add('active');
+            buttons[0].classList.add('active');
+        } else {
+            document.querySelector('#mlops-content').classList.add('active');
+            buttons[1].classList.add('active');
+        }
+    }
+</script>
 
 </body>
 </html>
